@@ -52,7 +52,32 @@ steps:
       - --no-allow-unauthenticated
     waitFor: ["-"]
 
+  - id: grant-master-invoker-list-agents
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - functions
+      - add-invoker-policy-binding
+      - list_agents
+      - --gen2
+      - --region=${_REGION}
+      - --member=serviceAccount:${_MASTER_SA}
+    waitFor: [deploy-list-agents]
+
+  - id: grant-master-invoker-ask-sub-agent
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - functions
+      - add-invoker-policy-binding
+      - ask_sub_agent
+      - --gen2
+      - --region=${_REGION}
+      - --member=serviceAccount:${_MASTER_SA}
+    waitFor: [deploy-ask-sub-agent]
+
 substitutions:
   _REGION: asia-northeast1
   _DISCOVERY_LOCATION: global
   _WORKER_SA: sa-secsys-worker@${PROJECT_ID}.iam.gserviceaccount.com
+  _MASTER_SA: sa-secsys-master@${PROJECT_ID}.iam.gserviceaccount.com
