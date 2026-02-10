@@ -71,9 +71,9 @@ Cloud Build Trigger で `cloudbuild.yaml` を実行してください。
 git push origin main
 ```
 
-## サービスアカウント運用（default SA 非依存）
+## IAM 設計（default SA / Owner-Editor 非依存）
 
-default の Compute Engine / App Engine サービスアカウントに権限を足す運用は行わず、用途別 SA を明示的に使用します。
+default の Compute Engine SA / App Engine SA や、人ユーザーへの Owner・Editor 付与を前提にせず、用途別 SA に最小権限のみ付与します。
 
 ### 1) 専用 SA の作成
 
@@ -85,20 +85,60 @@ gcloud iam service-accounts create sa-secsys-master \
   --display-name="SecSys Master Agent Runtime"
 ```
 
-### 2) Cloud Functions は Worker SA を明示
+### 2) `sa-secsys-worker` に実行時ロールを付与
+
+以下をプロジェクトに付与します。
+
+```bash
+gcloud projects add-iam-policy-binding ${PROJECT_ID} \
+  --member="serviceAccount:sa-secsys-worker@${PROJECT_ID}.iam.gserviceaccount.com" \
+  --role="roles/discoveryengine.admin"
+
+gcloud projects add-iam-policy-binding ${PROJECT_ID} \
+  --member="serviceAccount:sa-secsys-worker@${PROJECT_ID}.iam.gserviceaccount.com" \
+  --role="roles/datastore.user"
+
+gcloud projects add-iam-policy-binding ${PROJECT_ID} \
+  --member="serviceAccount:sa-secsys-worker@${PROJECT_ID}.iam.gserviceaccount.com" \
+  --role="roles/storage.objectAdmin"
+
+gcloud projects add-iam-policy-binding ${PROJECT_ID} \
+  --member="serviceAccount:sa-secsys-worker@${PROJECT_ID}.iam.gserviceaccount.com" \
+  --role="roles/aiplatform.user"
+
+gcloud projects add-iam-policy-binding ${PROJECT_ID} \
+  --member="serviceAccount:sa-secsys-worker@${PROJECT_ID}.iam.gserviceaccount.com" \
+  --role="roles/logging.logWriter"
+```
+
+### 3) `sa-secsys-master` にはサブエージェント呼び出し権限のみ付与
+
+Master 側が呼ぶ `list_agents` / `ask_sub_agent` のみ実行可能にします（`create_agent` は付与しない）。
+
+```bash
+gcloud functions add-invoker-policy-binding list_agents \
+  --region=asia-northeast1 \
+  --member="serviceAccount:sa-secsys-master@${PROJECT_ID}.iam.gserviceaccount.com"
+
+gcloud functions add-invoker-policy-binding ask_sub_agent \
+  --region=asia-northeast1 \
+  --member="serviceAccount:sa-secsys-master@${PROJECT_ID}.iam.gserviceaccount.com"
+```
+
+### 4) Cloud Functions は Worker SA を明示
 
 本リポジトリの `cloudbuild.yaml` では、Cloud Functions (Gen2) のデプロイ時に
-`--service-account=sa-secsys-worker@${PROJECT_ID}.iam.gserviceaccount.com` を指定済みです。
+`--service-account=sa-secsys-worker@${PROJECT_ID}.iam.gserviceaccount.com` を指定します。
 
 手動デプロイ時も同様に `--service-account` を必ず付与してください。
 
-### 3) Master Agent は Master SA を実行主体に設定
+### 5) Agent 設定（Master 実行主体）
 
-Master Agent 側の実行主体は以下を設定してください。
+Master Agent 側では次を設定します。
 
-- `sa-secsys-master@${PROJECT_ID}.iam.gserviceaccount.com`
-
-### 4) IAM 付与方針
+- 実行 SA: `sa-secsys-master@${PROJECT_ID}.iam.gserviceaccount.com`
+- 認証方式: ID トークン付きで `list_agents` と `ask_sub_agent` の HTTPS Endpoint を呼び出す
+- 呼び出し対象: 運用上必要な Sub-agent API のみ（`create_agent` を通常経路から除外）
 
 - 必要最小権限は `sa-secsys-worker` と `sa-secsys-master` のみに付与する
 - default SA（Compute/App Engine）には新規ロールを付与しない
@@ -122,3 +162,4 @@ bash scripts/test_master_sa_invoker.sh
 
 > 実行には `gcloud` CLI と、`functions.describe` / `run.services.getIamPolicy` /
 > `run.services.setIamPolicy` / `iam.serviceAccounts.getOpenIdToken` 相当の権限が必要です。
+これにより、SecSys の実行経路は default SA や人ユーザー Owner/Editor 権限に依存しません。
