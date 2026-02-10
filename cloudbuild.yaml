@@ -1,0 +1,58 @@
+steps:
+  - id: deploy-create-agent
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - functions
+      - deploy
+      - create_agent
+      - --gen2
+      - --runtime=python311
+      - --region=${_REGION}
+      - --source=backend/create_agent
+      - --entry-point=create_agent
+      - --trigger-http
+      - --service-account=${_WORKER_SA}
+      - --set-env-vars=GCP_PROJECT_ID=$PROJECT_ID,GCP_LOCATION=${_DISCOVERY_LOCATION}
+      - --no-allow-unauthenticated
+    waitFor: ["-"]
+
+  - id: deploy-list-agents
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - functions
+      - deploy
+      - list_agents
+      - --gen2
+      - --runtime=python311
+      - --region=${_REGION}
+      - --source=backend/list_agents
+      - --entry-point=list_agents
+      - --trigger-http
+      - --service-account=${_WORKER_SA}
+      - --no-allow-unauthenticated
+    waitFor: ["-"]
+
+  - id: deploy-ask-sub-agent
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - functions
+      - deploy
+      - ask_sub_agent
+      - --gen2
+      - --runtime=python311
+      - --region=${_REGION}
+      - --source=backend/ask_sub_agent
+      - --entry-point=ask_sub_agent
+      - --trigger-http
+      - --service-account=${_WORKER_SA}
+      - --set-env-vars=GCP_PROJECT_ID=$PROJECT_ID,GCP_LOCATION=${_DISCOVERY_LOCATION}
+      - --no-allow-unauthenticated
+    waitFor: ["-"]
+
+substitutions:
+  _REGION: asia-northeast1
+  _DISCOVERY_LOCATION: global
+  _WORKER_SA: sa-secsys-worker@${PROJECT_ID}.iam.gserviceaccount.com
