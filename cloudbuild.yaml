@@ -64,6 +64,18 @@ steps:
       - --member=serviceAccount:${_MASTER_SA}
     waitFor: [deploy-list-agents]
 
+  - id: grant-master-invoker-create-agent
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - functions
+      - add-invoker-policy-binding
+      - create_agent
+      - --gen2
+      - --region=${_REGION}
+      - --member=serviceAccount:${_MASTER_SA}
+    waitFor: [deploy-create-agent]
+
   - id: grant-master-invoker-ask-sub-agent
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
     entrypoint: gcloud
