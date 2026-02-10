@@ -70,3 +70,35 @@ Cloud Build Trigger で `cloudbuild.yaml` を実行してください。
 ```bash
 git push origin main
 ```
+
+## サービスアカウント運用（default SA 非依存）
+
+default の Compute Engine / App Engine サービスアカウントに権限を足す運用は行わず、用途別 SA を明示的に使用します。
+
+### 1) 専用 SA の作成
+
+```bash
+gcloud iam service-accounts create sa-secsys-worker \
+  --display-name="SecSys Worker Runtime"
+
+gcloud iam service-accounts create sa-secsys-master \
+  --display-name="SecSys Master Agent Runtime"
+```
+
+### 2) Cloud Functions は Worker SA を明示
+
+本リポジトリの `cloudbuild.yaml` では、Cloud Functions (Gen2) のデプロイ時に
+`--service-account=sa-secsys-worker@${PROJECT_ID}.iam.gserviceaccount.com` を指定済みです。
+
+手動デプロイ時も同様に `--service-account` を必ず付与してください。
+
+### 3) Master Agent は Master SA を実行主体に設定
+
+Master Agent 側の実行主体は以下を設定してください。
+
+- `sa-secsys-master@${PROJECT_ID}.iam.gserviceaccount.com`
+
+### 4) IAM 付与方針
+
+- 必要最小権限は `sa-secsys-worker` と `sa-secsys-master` のみに付与する
+- default SA（Compute/App Engine）には新規ロールを付与しない
