@@ -102,3 +102,23 @@ Master Agent 側の実行主体は以下を設定してください。
 
 - 必要最小権限は `sa-secsys-worker` と `sa-secsys-master` のみに付与する
 - default SA（Compute/App Engine）には新規ロールを付与しない
+
+## 認証付きHTTP呼び出しテスト（Master SA）
+
+`create_agent` / `list_agents` / `ask_sub_agent` について、
+「未認証は拒否、`sa-secsys-master` のみ許可」を検証するためのスクリプトを追加しています。
+
+```bash
+PROJECT_ID=<your-project-id> \
+MASTER_SA=sa-secsys-master@<your-project-id>.iam.gserviceaccount.com \
+bash scripts/test_master_sa_invoker.sh
+```
+
+動作:
+- 未認証で各関数URLへ HTTP 呼び出し（401/403 を期待）
+- `sa-secsys-master` を impersonate して ID トークン付きで呼び出し
+- 認証付き呼び出しが 403 の場合、対象 Gen2 関数の Cloud Run サービスへ
+  `roles/run.invoker` を `sa-secsys-master` に付与して再試行
+
+> 実行には `gcloud` CLI と、`functions.describe` / `run.services.getIamPolicy` /
+> `run.services.setIamPolicy` / `iam.serviceAccounts.getOpenIdToken` 相当の権限が必要です。
