@@ -163,3 +163,101 @@ bash scripts/test_master_sa_invoker.sh
 > 実行には `gcloud` CLI と、`functions.describe` / `run.services.getIamPolicy` /
 > `run.services.setIamPolicy` / `iam.serviceAccounts.getOpenIdToken` 相当の権限が必要です。
 これにより、SecSys の実行経路は default SA や人ユーザー Owner/Editor 権限に依存しません。
+
+## 初期セットアップ手順（本番運用向け）
+
+以下を **default compute SA / appspot SA / 個人 Owner・Editor に依存しない** 前提で実施します。
+
+1. SA 作成
+
+```bash
+gcloud iam service-accounts create sa-secsys-worker \
+  --display-name="SecSys Worker Runtime"
+
+gcloud iam service-accounts create sa-secsys-master \
+  --display-name="SecSys Master Agent Runtime"
+```
+
+2. Worker SA に実行権限を付与
+
+```bash
+gcloud projects add-iam-policy-binding ${PROJECT_ID} \
+  --member="serviceAccount:sa-secsys-worker@${PROJECT_ID}.iam.gserviceaccount.com" \
+  --role="roles/discoveryengine.admin"
+
+gcloud projects add-iam-policy-binding ${PROJECT_ID} \
+  --member="serviceAccount:sa-secsys-worker@${PROJECT_ID}.iam.gserviceaccount.com" \
+  --role="roles/datastore.user"
+
+gcloud projects add-iam-policy-binding ${PROJECT_ID} \
+  --member="serviceAccount:sa-secsys-worker@${PROJECT_ID}.iam.gserviceaccount.com" \
+  --role="roles/storage.objectAdmin"
+
+gcloud projects add-iam-policy-binding ${PROJECT_ID} \
+  --member="serviceAccount:sa-secsys-worker@${PROJECT_ID}.iam.gserviceaccount.com" \
+  --role="roles/aiplatform.user"
+
+gcloud projects add-iam-policy-binding ${PROJECT_ID} \
+  --member="serviceAccount:sa-secsys-worker@${PROJECT_ID}.iam.gserviceaccount.com" \
+  --role="roles/logging.logWriter"
+```
+
+3. Master SA に関数呼び出し権限を付与
+
+```bash
+for fn in create_agent list_agents ask_sub_agent; do
+  gcloud functions add-invoker-policy-binding "$fn" \
+    --gen2 \
+    --region=asia-northeast1 \
+    --member="serviceAccount:sa-secsys-master@${PROJECT_ID}.iam.gserviceaccount.com"
+done
+```
+
+4. 検証スクリプトを実行（未認証は 401/403、master SA は 200系を確認）
+
+```bash
+PROJECT_ID=${PROJECT_ID} \
+MASTER_SA=sa-secsys-master@${PROJECT_ID}.iam.gserviceaccount.com \
+bash scripts/test_master_sa_invoker.sh
+```
+
+5. Cloud Build 実行 SA の最終確認
+
+```bash
+PROJECT_NUMBER=$(gcloud projects describe ${PROJECT_ID} --format='value(projectNumber)')
+# 例: Cloud Build 実行 SA（Trigger 側で明示している場合はその SA に置換）
+CB_SA="${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com"
+WORKER_SA="sa-secsys-worker@${PROJECT_ID}.iam.gserviceaccount.com"
+
+# worker SA に対する iam.serviceAccountUser（roles/iam.serviceAccountUser）
+gcloud iam service-accounts get-iam-policy "$WORKER_SA" \
+  --format="json(bindings)" \
+  --flatten="bindings[]" \
+  --filter="bindings.members:serviceAccount:${CB_SA} AND bindings.role:roles/iam.serviceAccountUser"
+
+# 関数デプロイに必要なロール確認（例: roles/cloudfunctions.developer, roles/run.admin など）
+gcloud projects get-iam-policy ${PROJECT_ID} \
+  --flatten="bindings[]" \
+  --filter="bindings.members:serviceAccount:${CB_SA}" \
+  --format="table(bindings.role)"
+```
+
+6. default SA / appspot SA / 個人 Owner・Editor 依存の排除確認
+
+```bash
+PROJECT_NUMBER=$(gcloud projects describe ${PROJECT_ID} --format='value(projectNumber)')
+DEFAULT_COMPUTE_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
+APPSPOT_SA="${PROJECT_ID}@appspot.gserviceaccount.com"
+
+# default/appspot SA の過剰権限有無を確認
+gcloud projects get-iam-policy ${PROJECT_ID} \
+  --flatten="bindings[]" \
+  --filter="bindings.members:serviceAccount:${DEFAULT_COMPUTE_SA} OR bindings.members:serviceAccount:${APPSPOT_SA}" \
+  --format="table(bindings.role, bindings.members)"
+
+# 人ユーザーの Owner / Editor 付与有無を確認
+gcloud projects get-iam-policy ${PROJECT_ID} \
+  --flatten="bindings[]" \
+  --filter="(bindings.role=roles/owner OR bindings.role=roles/editor) AND bindings.members:user:*" \
+  --format="table(bindings.role, bindings.members)"
+```
