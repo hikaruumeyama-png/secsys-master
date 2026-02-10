@@ -19,10 +19,12 @@ declare -A METHODS=(
 )
 
 declare -A BODIES=(
-  [create_agent]='{"display_name":"authz-test-agent","description":"authz test","gcs_source":"gs://dummy-bucket/dummy.pdf"}'
+  [create_agent]='{"display_name":"","description":"authz test","gcs_source":"gs://dummy-bucket/dummy.pdf"}'
   [list_agents]=''
   [ask_sub_agent]='{"agent_id":"dummy-agent","question":"authz test"}'
 )
+
+failures=0
 
 get_url() {
   local fn="$1"
@@ -83,7 +85,15 @@ for fn in "${FUNCTIONS[@]}"; do
     echo "[OK] $fn => unauth denied, master-sa allowed"
   else
     echo "[CHECK] $fn => unauth=$unauth_code auth=$auth_code"
+    failures=$((failures + 1))
   fi
   echo
 
 done
+
+if (( failures > 0 )); then
+  echo "[FAIL] Authorization checks failed for $failures function(s)."
+  exit 1
+fi
+
+echo "[PASS] Authorization checks passed for all functions."
