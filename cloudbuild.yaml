@@ -59,6 +59,7 @@ steps:
       - functions
       - add-invoker-policy-binding
       - list_agents
+      - --gen2
       - --region=${_REGION}
       - --member=serviceAccount:${_MASTER_SA}
     waitFor: [deploy-list-agents]
@@ -70,6 +71,7 @@ steps:
       - functions
       - add-invoker-policy-binding
       - ask_sub_agent
+      - --gen2
       - --region=${_REGION}
       - --member=serviceAccount:${_MASTER_SA}
     waitFor: [deploy-ask-sub-agent]
