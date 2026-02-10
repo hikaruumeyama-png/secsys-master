@@ -224,13 +224,16 @@ bash scripts/test_master_sa_invoker.sh
 5. Cloud Build 実行 SA の最終確認
 
 ```bash
-# 例: Cloud Build 実行 SA（プロジェクト番号は実環境に置換）
+PROJECT_NUMBER=$(gcloud projects describe ${PROJECT_ID} --format='value(projectNumber)')
+# 例: Cloud Build 実行 SA（Trigger 側で明示している場合はその SA に置換）
 CB_SA="${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com"
 WORKER_SA="sa-secsys-worker@${PROJECT_ID}.iam.gserviceaccount.com"
 
 # worker SA に対する iam.serviceAccountUser（roles/iam.serviceAccountUser）
 gcloud iam service-accounts get-iam-policy "$WORKER_SA" \
-  --format="json(bindings)"
+  --format="json(bindings)" \
+  --flatten="bindings[]" \
+  --filter="bindings.members:serviceAccount:${CB_SA} AND bindings.role:roles/iam.serviceAccountUser"
 
 # 関数デプロイに必要なロール確認（例: roles/cloudfunctions.developer, roles/run.admin など）
 gcloud projects get-iam-policy ${PROJECT_ID} \
