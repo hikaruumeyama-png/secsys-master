@@ -10,18 +10,24 @@ if [[ -z "${PROJECT_ID}" || -z "${MASTER_SA}" ]]; then
   exit 1
 fi
 
-FUNCTIONS=(create_agent list_agents ask_sub_agent)
+FUNCTIONS=(create_agent list_agents ask_sub_agent upload_document master_agent google_chat_handler)
 
 declare -A METHODS=(
   [create_agent]=POST
   [list_agents]=GET
   [ask_sub_agent]=POST
+  [upload_document]=POST
+  [master_agent]=POST
+  [google_chat_handler]=POST
 )
 
 declare -A BODIES=(
   [create_agent]='{"display_name":"","description":"authz test","gcs_source":"gs://dummy-bucket/dummy.pdf"}'
   [list_agents]=''
   [ask_sub_agent]='{"agent_id":"dummy-agent","question":"authz test"}'
+  [upload_document]='{"display_name":"authz test","description":"authz test"}'
+  [master_agent]='{"question":"authz test"}'
+  [google_chat_handler]='{"type":"MESSAGE","message":{"text":"authz test"}}'
 )
 
 failures=0

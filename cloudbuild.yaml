@@ -1,4 +1,5 @@
 steps:
+  # ── Phase 1: 既存関数デプロイ ──
   - id: deploy-create-agent
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
     entrypoint: gcloud
@@ -52,6 +53,62 @@ steps:
       - --no-allow-unauthenticated
     waitFor: ["-"]
 
+  # ── Phase 2: 新規関数デプロイ ──
+  - id: deploy-upload-document
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - functions
+      - deploy
+      - upload_document
+      - --gen2
+      - --runtime=python311
+      - --region=${_REGION}
+      - --source=backend/upload_document
+      - --entry-point=upload_document
+      - --trigger-http
+      - --service-account=${_WORKER_SA}
+      - --set-env-vars=GCP_PROJECT_ID=$PROJECT_ID,GCS_BUCKET_NAME=${_GCS_BUCKET},CREATE_AGENT_URL=${_CREATE_AGENT_URL}
+      - --no-allow-unauthenticated
+    waitFor: ["-"]
+
+  - id: deploy-master-agent
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - functions
+      - deploy
+      - master_agent
+      - --gen2
+      - --runtime=python311
+      - --region=${_REGION}
+      - --source=backend/master_agent
+      - --entry-point=master_agent
+      - --trigger-http
+      - --service-account=${_WORKER_SA}
+      - --set-env-vars=GCP_PROJECT_ID=$PROJECT_ID,GCP_LOCATION=${_REGION},LIST_AGENTS_URL=${_LIST_AGENTS_URL},ASK_SUB_AGENT_URL=${_ASK_SUB_AGENT_URL}
+      - --no-allow-unauthenticated
+    waitFor: ["-"]
+
+  - id: deploy-google-chat-handler
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - functions
+      - deploy
+      - google_chat_handler
+      - --gen2
+      - --runtime=python311
+      - --region=${_REGION}
+      - --source=backend/google_chat_handler
+      - --entry-point=google_chat_handler
+      - --trigger-http
+      - --service-account=${_WORKER_SA}
+      - --set-env-vars=GCP_PROJECT_ID=$PROJECT_ID,MASTER_AGENT_URL=${_MASTER_AGENT_URL}
+      - --no-allow-unauthenticated
+    waitFor: ["-"]
+
+  # ── Phase 1: IAM バインディング ──
   - id: grant-master-invoker-list-agents
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
     entrypoint: gcloud
@@ -88,8 +145,50 @@ steps:
       - --member=serviceAccount:${_MASTER_SA}
     waitFor: [deploy-ask-sub-agent]
 
+  # ── Phase 2: IAM バインディング ──
+  - id: grant-master-invoker-upload-document
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - functions
+      - add-invoker-policy-binding
+      - upload_document
+      - --gen2
+      - --region=${_REGION}
+      - --member=serviceAccount:${_MASTER_SA}
+    waitFor: [deploy-upload-document]
+
+  - id: grant-master-invoker-master-agent
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - functions
+      - add-invoker-policy-binding
+      - master_agent
+      - --gen2
+      - --region=${_REGION}
+      - --member=serviceAccount:${_MASTER_SA}
+    waitFor: [deploy-master-agent]
+
+  - id: grant-master-invoker-google-chat-handler
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - functions
+      - add-invoker-policy-binding
+      - google_chat_handler
+      - --gen2
+      - --region=${_REGION}
+      - --member=serviceAccount:${_MASTER_SA}
+    waitFor: [deploy-google-chat-handler]
+
 substitutions:
   _REGION: asia-northeast1
   _DISCOVERY_LOCATION: global
   _WORKER_SA: sa-secsys-worker@${PROJECT_ID}.iam.gserviceaccount.com
   _MASTER_SA: sa-secsys-master@${PROJECT_ID}.iam.gserviceaccount.com
+  _GCS_BUCKET: ${PROJECT_ID}-secsys-docs
+  _LIST_AGENTS_URL: https://${_REGION}-${PROJECT_ID}.cloudfunctions.net/list_agents
+  _ASK_SUB_AGENT_URL: https://${_REGION}-${PROJECT_ID}.cloudfunctions.net/ask_sub_agent
+  _CREATE_AGENT_URL: https://${_REGION}-${PROJECT_ID}.cloudfunctions.net/create_agent
+  _MASTER_AGENT_URL: https://${_REGION}-${PROJECT_ID}.cloudfunctions.net/master_agent
