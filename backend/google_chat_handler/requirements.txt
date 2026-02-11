@@ -1,0 +1,2 @@
+-r ../requirements_common.txt
+requests>=2.31.0
