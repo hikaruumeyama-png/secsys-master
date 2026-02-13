@@ -86,6 +86,7 @@ steps:
       - --entry-point=master_agent
       - --trigger-http
       - --service-account=${_WORKER_SA}
+      - --memory=512Mi
       - --set-env-vars=GCP_PROJECT_ID=$PROJECT_ID,GCP_LOCATION=${_REGION},LIST_AGENTS_URL=${_LIST_AGENTS_URL},ASK_SUB_AGENT_URL=${_ASK_SUB_AGENT_URL}
       - --no-allow-unauthenticated
     waitFor: ["-"]
