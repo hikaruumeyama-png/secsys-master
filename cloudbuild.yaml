@@ -86,7 +86,7 @@ steps:
       - --entry-point=master_agent
       - --trigger-http
       - --service-account=sa-secsys-worker@${PROJECT_ID}.iam.gserviceaccount.com
-      - --set-env-vars=GCP_PROJECT_ID=$PROJECT_ID,GCP_LOCATION=${_REGION},LIST_AGENTS_URL=https://${_REGION}-$PROJECT_ID.cloudfunctions.net/list_agents,ASK_SUB_AGENT_URL=https://${_REGION}-$PROJECT_ID.cloudfunctions.net/ask_sub_agent
+      - --set-env-vars=GCP_PROJECT_ID=$PROJECT_ID,GCP_LOCATION=${_REGION},LIST_AGENTS_URL=https://${_REGION}-$PROJECT_ID.cloudfunctions.net/list_agents,ASK_SUB_AGENT_URL=https://${_REGION}-$PROJECT_ID.cloudfunctions.net/ask_sub_agent,AGENT_ENGINE_RESOURCE_NAME=${_AGENT_ENGINE_RESOURCE_NAME},AGENT_ENGINE_CLASS_METHOD=${_AGENT_ENGINE_CLASS_METHOD}
       - --memory=512Mi
       - --no-allow-unauthenticated
     waitFor: ["-"]
@@ -187,3 +187,5 @@ substitutions:
   _REGION: asia-northeast1
   _DISCOVERY_LOCATION: global
   _GCS_BUCKET: ${PROJECT_ID}-secsys-docs
+  _AGENT_ENGINE_RESOURCE_NAME: unset
+  _AGENT_ENGINE_CLASS_METHOD: query
