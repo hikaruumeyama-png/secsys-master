@@ -285,6 +285,9 @@ bash scripts/test_master_sa_invoker.sh
    - **Avatar URL**: (任意)
    - **Connection settings**: HTTP endpoint URL → `google_chat_handler` 関数の URL
    - **Permissions**: 組織内の特定ユーザー/グループ
+   - **動作仕様**:
+     - 個別チャット（DM）: ユーザーのメッセージに常時応答
+     - スペース: Bot がメンションされたメッセージのみに応答
 
 ## 初期セットアップ手順（本番運用向け）
 
