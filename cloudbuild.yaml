@@ -13,7 +13,7 @@ steps:
       - --source=backend/create_agent
       - --entry-point=create_agent
       - --trigger-http
-      - --service-account=${_WORKER_SA}
+      - --service-account=sa-secsys-worker@${PROJECT_ID}.iam.gserviceaccount.com
       - --set-env-vars=GCP_PROJECT_ID=$PROJECT_ID,GCP_LOCATION=${_DISCOVERY_LOCATION}
       - --no-allow-unauthenticated
     waitFor: ["-"]
@@ -31,7 +31,7 @@ steps:
       - --source=backend/list_agents
       - --entry-point=list_agents
       - --trigger-http
-      - --service-account=${_WORKER_SA}
+      - --service-account=sa-secsys-worker@${PROJECT_ID}.iam.gserviceaccount.com
       - --no-allow-unauthenticated
     waitFor: ["-"]
 
@@ -48,7 +48,7 @@ steps:
       - --source=backend/ask_sub_agent
       - --entry-point=ask_sub_agent
       - --trigger-http
-      - --service-account=${_WORKER_SA}
+      - --service-account=sa-secsys-worker@${PROJECT_ID}.iam.gserviceaccount.com
       - --set-env-vars=GCP_PROJECT_ID=$PROJECT_ID,GCP_LOCATION=${_DISCOVERY_LOCATION}
       - --no-allow-unauthenticated
     waitFor: ["-"]
@@ -67,7 +67,7 @@ steps:
       - --source=backend/upload_document
       - --entry-point=upload_document
       - --trigger-http
-      - --service-account=${_WORKER_SA}
+      - --service-account=sa-secsys-worker@${PROJECT_ID}.iam.gserviceaccount.com
       - --set-env-vars=GCP_PROJECT_ID=$PROJECT_ID,GCS_BUCKET_NAME=${_GCS_BUCKET},CREATE_AGENT_URL=${_CREATE_AGENT_URL}
       - --no-allow-unauthenticated
     waitFor: ["-"]
@@ -85,7 +85,7 @@ steps:
       - --source=backend/master_agent
       - --entry-point=master_agent
       - --trigger-http
-      - --service-account=${_WORKER_SA}
+      - --service-account=sa-secsys-worker@${PROJECT_ID}.iam.gserviceaccount.com
       - --memory=512Mi
       - --set-env-vars=GCP_PROJECT_ID=$PROJECT_ID,GCP_LOCATION=${_REGION},LIST_AGENTS_URL=${_LIST_AGENTS_URL},ASK_SUB_AGENT_URL=${_ASK_SUB_AGENT_URL}
       - --no-allow-unauthenticated
@@ -104,7 +104,7 @@ steps:
       - --source=backend/google_chat_handler
       - --entry-point=google_chat_handler
       - --trigger-http
-      - --service-account=${_WORKER_SA}
+      - --service-account=sa-secsys-worker@${PROJECT_ID}.iam.gserviceaccount.com
       - --set-env-vars=GCP_PROJECT_ID=$PROJECT_ID,MASTER_AGENT_URL=${_MASTER_AGENT_URL}
       - --no-allow-unauthenticated
     waitFor: ["-"]
@@ -119,7 +119,7 @@ steps:
       - list_agents
       - --gen2
       - --region=${_REGION}
-      - --member=serviceAccount:${_MASTER_SA}
+      - --member=serviceAccount:sa-secsys-master@${PROJECT_ID}.iam.gserviceaccount.com
     waitFor: [deploy-list-agents]
 
   - id: grant-master-invoker-create-agent
@@ -131,7 +131,7 @@ steps:
       - create_agent
       - --gen2
       - --region=${_REGION}
-      - --member=serviceAccount:${_MASTER_SA}
+      - --member=serviceAccount:sa-secsys-master@${PROJECT_ID}.iam.gserviceaccount.com
     waitFor: [deploy-create-agent]
 
   - id: grant-master-invoker-ask-sub-agent
@@ -143,7 +143,7 @@ steps:
       - ask_sub_agent
       - --gen2
       - --region=${_REGION}
-      - --member=serviceAccount:${_MASTER_SA}
+      - --member=serviceAccount:sa-secsys-master@${PROJECT_ID}.iam.gserviceaccount.com
     waitFor: [deploy-ask-sub-agent]
 
   # ── Phase 2: IAM バインディング ──
@@ -156,7 +156,7 @@ steps:
       - upload_document
       - --gen2
       - --region=${_REGION}
-      - --member=serviceAccount:${_MASTER_SA}
+      - --member=serviceAccount:sa-secsys-master@${PROJECT_ID}.iam.gserviceaccount.com
     waitFor: [deploy-upload-document]
 
   - id: grant-master-invoker-master-agent
@@ -168,7 +168,7 @@ steps:
       - master_agent
       - --gen2
       - --region=${_REGION}
-      - --member=serviceAccount:${_MASTER_SA}
+      - --member=serviceAccount:sa-secsys-master@${PROJECT_ID}.iam.gserviceaccount.com
     waitFor: [deploy-master-agent]
 
   - id: grant-master-invoker-google-chat-handler
@@ -180,14 +180,12 @@ steps:
       - google_chat_handler
       - --gen2
       - --region=${_REGION}
-      - --member=serviceAccount:${_MASTER_SA}
+      - --member=serviceAccount:sa-secsys-master@${PROJECT_ID}.iam.gserviceaccount.com
     waitFor: [deploy-google-chat-handler]
 
 substitutions:
   _REGION: asia-northeast1
   _DISCOVERY_LOCATION: global
-  _WORKER_SA: sa-secsys-worker@${PROJECT_ID}.iam.gserviceaccount.com
-  _MASTER_SA: sa-secsys-master@${PROJECT_ID}.iam.gserviceaccount.com
   _GCS_BUCKET: ${PROJECT_ID}-secsys-docs
   _LIST_AGENTS_URL: https://${_REGION}-${PROJECT_ID}.cloudfunctions.net/list_agents
   _ASK_SUB_AGENT_URL: https://${_REGION}-${PROJECT_ID}.cloudfunctions.net/ask_sub_agent
