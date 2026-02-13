@@ -90,6 +90,12 @@ def _call_master_agent(text: str) -> dict:
     return resp.json()
 
 
+def _is_space_message(event: Dict[str, Any]) -> bool:
+    space = event.get("space", {}) or {}
+    space_type = (space.get("type") or "").upper()
+    return space_type in {"SPACE", "ROOM"}
+
+
 def google_chat_handler(request: Request):
     """HTTP Cloud Function: Google Chat webhook handler."""
     try:
@@ -107,7 +113,13 @@ def google_chat_handler(request: Request):
 
         if event_type == "MESSAGE":
             message = event.get("message", {})
+            is_space = _is_space_message(event)
             text = (message.get("argumentText") or message.get("text") or "").strip()
+
+            # In space messages, respond only when the app is mentioned.
+            # Google Chat sets argumentText only for mention messages.
+            if is_space and not message.get("argumentText"):
+                return {}
 
             if not text:
                 return {"text": "テキストを入力してください。"}
