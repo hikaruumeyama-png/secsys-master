@@ -94,6 +94,9 @@ secsys-master/
 - `GCP_LOCATION` (例: `asia-northeast1`)
 - `LIST_AGENTS_URL` — `list_agents` 関数の完全 URL
 - `ASK_SUB_AGENT_URL` — `ask_sub_agent` 関数の完全 URL
+- `AGENT_ENGINE_RESOURCE_NAME` (任意) — Agent Engine の resource name  
+  例: `projects/<project>/locations/<region>/reasoningEngines/<id>`
+- `AGENT_ENGINE_CLASS_METHOD` (任意) — `reasoningEngines.query` の `classMethod`（既定: `query`）
 
 ### google_chat_handler
 - `GCP_PROJECT_ID`

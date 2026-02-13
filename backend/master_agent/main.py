@@ -1,8 +1,10 @@
 import json
+import logging
 import os
 import re
 from typing import Any, Dict, Tuple
 
+import google.auth
 import requests as http_requests
 from flask import Request
 
@@ -10,6 +12,8 @@ import google.auth.transport.requests
 import google.oauth2.id_token
 import vertexai
 from vertexai.generative_models import GenerativeModel
+
+logger = logging.getLogger(__name__)
 
 
 def _json_response(payload: Dict[str, Any], status: int = 200) -> Tuple[str, int, Dict[str, str]]:
@@ -65,6 +69,66 @@ def _parse_gemini_json(text: str) -> Dict[str, Any]:
     return json.loads(match.group())
 
 
+def _get_access_token() -> str:
+    credentials, _ = google.auth.default(scopes=["https://www.googleapis.com/auth/cloud-platform"])
+    credentials.refresh(google.auth.transport.requests.Request())
+    return credentials.token
+
+
+def _is_reasoning_engine_name(value: str) -> bool:
+    return bool(re.match(r"^projects/[^/]+/locations/[^/]+/reasoningEngines/[^/]+$", value))
+
+
+def _parse_selection_payload(data: Any) -> Dict[str, Any]:
+    if isinstance(data, dict):
+        if "agent_id" in data:
+            return data
+        # Some agents return nested payloads.
+        if "output" in data:
+            return _parse_selection_payload(data.get("output"))
+    if isinstance(data, str):
+        return _parse_gemini_json(data)
+    raise ValueError("routing response did not contain a valid selection payload")
+
+
+def _route_with_agent_engine(reasoning_engine_name: str, class_method: str, question: str, agents: list) -> Dict[str, Any]:
+    endpoint = f"https://aiplatform.googleapis.com/v1/{reasoning_engine_name}:query"
+    payload: Dict[str, Any] = {
+        "input": {
+            "question": question,
+            "agents": [
+                {
+                    "agent_id": a.get("agent_id"),
+                    "display_name": a.get("display_name"),
+                    "description": a.get("description"),
+                }
+                for a in agents
+            ],
+        }
+    }
+    if class_method:
+        payload["classMethod"] = class_method
+
+    token = _get_access_token()
+    resp = http_requests.post(
+        endpoint,
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+        json=payload,
+        timeout=30,
+    )
+    resp.raise_for_status()
+    body = resp.json()
+    return _parse_selection_payload(body.get("output", body))
+
+
+def _route_with_gemini(project_id: str, location: str, question: str, agents: list) -> Dict[str, Any]:
+    prompt = _build_routing_prompt(agents, question)
+    vertexai.init(project=project_id, location=location)
+    model = GenerativeModel("gemini-2.0-flash")
+    gemini_response = model.generate_content(prompt)
+    return _parse_gemini_json(gemini_response.text)
+
+
 def master_agent(request: Request):
     """HTTP Cloud Function: route user questions to the best sub-agent via Gemini."""
     if request.method != "POST":
@@ -78,6 +142,8 @@ def master_agent(request: Request):
         location = os.environ.get("GCP_LOCATION", "asia-northeast1")
         list_agents_url = os.environ["LIST_AGENTS_URL"]
         ask_sub_agent_url = os.environ["ASK_SUB_AGENT_URL"]
+        reasoning_engine_name = (os.environ.get("AGENT_ENGINE_RESOURCE_NAME") or "").strip()
+        reasoning_engine_method = (os.environ.get("AGENT_ENGINE_CLASS_METHOD") or "query").strip()
 
         # 1) Fetch available agents
         agents = _fetch_agents(list_agents_url)
@@ -90,12 +156,21 @@ def master_agent(request: Request):
                 "reason": "登録されているエージェントがありません。",
             })
 
-        # 2) Ask Gemini to pick the best agent
-        prompt = _build_routing_prompt(agents, question)
-        vertexai.init(project=project_id, location=location)
-        model = GenerativeModel("gemini-2.0-flash")
-        gemini_response = model.generate_content(prompt)
-        selection = _parse_gemini_json(gemini_response.text)
+        # 2) Select the best agent via Agent Engine (preferred) or Gemini fallback.
+        selection: Dict[str, Any]
+        if _is_reasoning_engine_name(reasoning_engine_name):
+            try:
+                selection = _route_with_agent_engine(
+                    reasoning_engine_name=reasoning_engine_name,
+                    class_method=reasoning_engine_method,
+                    question=question,
+                    agents=agents,
+                )
+            except Exception:
+                logger.exception("agent engine routing failed; falling back to gemini routing")
+                selection = _route_with_gemini(project_id, location, question, agents)
+        else:
+            selection = _route_with_gemini(project_id, location, question, agents)
 
         selected_agent_id = selection.get("agent_id")
         reason = selection.get("reason", "")
