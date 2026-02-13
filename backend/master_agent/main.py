@@ -79,6 +79,14 @@ def _is_reasoning_engine_name(value: str) -> bool:
     return bool(re.match(r"^projects/[^/]+/locations/[^/]+/reasoningEngines/[^/]+$", value))
 
 
+def _agent_engine_api_host(reasoning_engine_name: str) -> str:
+    # Resource format: projects/{p}/locations/{location}/reasoningEngines/{id}
+    location = reasoning_engine_name.split("/")[3]
+    if location == "global":
+        return "aiplatform.googleapis.com"
+    return f"{location}-aiplatform.googleapis.com"
+
+
 def _parse_selection_payload(data: Any) -> Dict[str, Any]:
     if isinstance(data, dict):
         if "agent_id" in data:
@@ -96,7 +104,7 @@ def _is_truthy(value: str) -> bool:
 
 
 def _route_with_agent_engine(reasoning_engine_name: str, class_method: str, question: str, agents: list) -> Dict[str, Any]:
-    endpoint = f"https://aiplatform.googleapis.com/v1/{reasoning_engine_name}:query"
+    endpoint = f"https://{_agent_engine_api_host(reasoning_engine_name)}/v1/{reasoning_engine_name}:query"
     payload: Dict[str, Any] = {
         "input": {
             "question": question,

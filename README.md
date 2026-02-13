@@ -96,6 +96,7 @@ secsys-master/
 - `ASK_SUB_AGENT_URL` — `ask_sub_agent` 関数の完全 URL
 - `AGENT_ENGINE_RESOURCE_NAME` (任意) — Agent Engine の resource name  
   例: `projects/<project>/locations/<region>/reasoningEngines/<id>`
+  - `location` に応じて `master_agent` が `https://<location>-aiplatform.googleapis.com` を自動選択して呼び出します。
 - `AGENT_ENGINE_CLASS_METHOD` (任意) — `reasoningEngines.query` の `classMethod`（既定: `query`）
 - `AGENT_ROUTING_MODE` (任意) — `agent_engine_primary` / `agent_engine_only` / `gemini`（既定: `agent_engine_primary`）
 - `AGENT_ENGINE_FALLBACK_TO_GEMINI` (任意) — `true` の場合、Agent Engine失敗時にGeminiへフォールバック（既定: `false`）
