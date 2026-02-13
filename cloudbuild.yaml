@@ -68,7 +68,7 @@ steps:
       - --entry-point=upload_document
       - --trigger-http
       - --service-account=${_WORKER_SA}
-      - --set-env-vars=GCP_PROJECT_ID=$PROJECT_ID,GCS_BUCKET_NAME=${_GCS_BUCKET},CREATE_AGENT_URL=${_CREATE_AGENT_URL}
+      - --set-env-vars=GCP_PROJECT_ID=$PROJECT_ID,GCS_BUCKET_NAME=${_GCS_BUCKET},CREATE_AGENT_URL=https://${_REGION}-$PROJECT_ID.cloudfunctions.net/create_agent
       - --no-allow-unauthenticated
     waitFor: ["-"]
 
@@ -86,7 +86,7 @@ steps:
       - --entry-point=master_agent
       - --trigger-http
       - --service-account=${_WORKER_SA}
-      - --set-env-vars=GCP_PROJECT_ID=$PROJECT_ID,GCP_LOCATION=${_REGION},LIST_AGENTS_URL=${_LIST_AGENTS_URL},ASK_SUB_AGENT_URL=${_ASK_SUB_AGENT_URL}
+      - --set-env-vars=GCP_PROJECT_ID=$PROJECT_ID,GCP_LOCATION=${_REGION},LIST_AGENTS_URL=https://${_REGION}-$PROJECT_ID.cloudfunctions.net/list_agents,ASK_SUB_AGENT_URL=https://${_REGION}-$PROJECT_ID.cloudfunctions.net/ask_sub_agent
       - --no-allow-unauthenticated
     waitFor: ["-"]
 
@@ -104,7 +104,7 @@ steps:
       - --entry-point=google_chat_handler
       - --trigger-http
       - --service-account=${_WORKER_SA}
-      - --set-env-vars=GCP_PROJECT_ID=$PROJECT_ID,MASTER_AGENT_URL=${_MASTER_AGENT_URL}
+      - --set-env-vars=GCP_PROJECT_ID=$PROJECT_ID,MASTER_AGENT_URL=https://${_REGION}-$PROJECT_ID.cloudfunctions.net/master_agent
       - --no-allow-unauthenticated
     waitFor: ["-"]
 
@@ -188,7 +188,3 @@ substitutions:
   _WORKER_SA: sa-secsys-worker@${PROJECT_ID}.iam.gserviceaccount.com
   _MASTER_SA: sa-secsys-master@${PROJECT_ID}.iam.gserviceaccount.com
   _GCS_BUCKET: ${PROJECT_ID}-secsys-docs
-  _LIST_AGENTS_URL: https://${_REGION}-${PROJECT_ID}.cloudfunctions.net/list_agents
-  _ASK_SUB_AGENT_URL: https://${_REGION}-${PROJECT_ID}.cloudfunctions.net/ask_sub_agent
-  _CREATE_AGENT_URL: https://${_REGION}-${PROJECT_ID}.cloudfunctions.net/create_agent
-  _MASTER_AGENT_URL: https://${_REGION}-${PROJECT_ID}.cloudfunctions.net/master_agent
