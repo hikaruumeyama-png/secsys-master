@@ -91,6 +91,10 @@ def _parse_selection_payload(data: Any) -> Dict[str, Any]:
     raise ValueError("routing response did not contain a valid selection payload")
 
 
+def _is_truthy(value: str) -> bool:
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _route_with_agent_engine(reasoning_engine_name: str, class_method: str, question: str, agents: list) -> Dict[str, Any]:
     endpoint = f"https://aiplatform.googleapis.com/v1/{reasoning_engine_name}:query"
     payload: Dict[str, Any] = {
@@ -144,6 +148,8 @@ def master_agent(request: Request):
         ask_sub_agent_url = os.environ["ASK_SUB_AGENT_URL"]
         reasoning_engine_name = (os.environ.get("AGENT_ENGINE_RESOURCE_NAME") or "").strip()
         reasoning_engine_method = (os.environ.get("AGENT_ENGINE_CLASS_METHOD") or "query").strip()
+        routing_mode = (os.environ.get("AGENT_ROUTING_MODE") or "agent_engine_primary").strip().lower()
+        fallback_to_gemini = _is_truthy(os.environ.get("AGENT_ENGINE_FALLBACK_TO_GEMINI") or "false")
 
         # 1) Fetch available agents
         agents = _fetch_agents(list_agents_url)
@@ -156,9 +162,16 @@ def master_agent(request: Request):
                 "reason": "登録されているエージェントがありません。",
             })
 
-        # 2) Select the best agent via Agent Engine (preferred) or Gemini fallback.
+        # 2) Select the best agent. By default Agent Engine is the primary route.
         selection: Dict[str, Any]
-        if _is_reasoning_engine_name(reasoning_engine_name):
+        if routing_mode == "gemini":
+            selection = _route_with_gemini(project_id, location, question, agents)
+        elif routing_mode in {"agent_engine_primary", "agent_engine_only"}:
+            if not _is_reasoning_engine_name(reasoning_engine_name):
+                raise ValueError(
+                    "AGENT_ENGINE_RESOURCE_NAME must be a valid resource name when AGENT_ROUTING_MODE is "
+                    "agent_engine_primary/agent_engine_only"
+                )
             try:
                 selection = _route_with_agent_engine(
                     reasoning_engine_name=reasoning_engine_name,
@@ -166,11 +179,14 @@ def master_agent(request: Request):
                     question=question,
                     agents=agents,
                 )
-            except Exception:
-                logger.exception("agent engine routing failed; falling back to gemini routing")
-                selection = _route_with_gemini(project_id, location, question, agents)
+            except Exception as exc:
+                if fallback_to_gemini and routing_mode == "agent_engine_primary":
+                    logger.exception("agent engine routing failed; falling back to gemini routing")
+                    selection = _route_with_gemini(project_id, location, question, agents)
+                else:
+                    raise ValueError(f"agent engine routing failed: {exc}") from exc
         else:
-            selection = _route_with_gemini(project_id, location, question, agents)
+            raise ValueError("AGENT_ROUTING_MODE must be one of: agent_engine_primary, agent_engine_only, gemini")
 
         selected_agent_id = selection.get("agent_id")
         reason = selection.get("reason", "")
